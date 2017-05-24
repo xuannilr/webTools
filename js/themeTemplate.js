@@ -1,5 +1,5 @@
 var themeLayout = function() {
-	var that = new Object();
+	var that = {};
 	var Extend = function(destination, source) { 
 	    for (var property in source) { 
 	    	if(source[property]===null||source[property]===undefined||source[property]==="")continue;
@@ -90,7 +90,7 @@ var themeLayout = function() {
 		},
 		createItem:function(id ,type ,num){
 		    function addPx(val){
-		    	return val+"px"
+		    	return val+"px";
 		    }
 		    function odd_even_check(val){
 		    	return val%2 ==0 ? true:false;
@@ -150,8 +150,21 @@ var themeLayout = function() {
 					var thisObj = this;
 					this.bindEvent(iTag, "click", function(){
 						that.prototype.createItem(this.containerId,this.index,2);
-					});
+					});	
 				}
+				var dragobj = this.createDomEle({name:"i",id:this.Uuid(),containerId:ele.id,style:{
+					width:"5px",
+						height:"5px",
+						position:"absolute",
+						right:"0px",
+						bottom:"0px",
+						backgroundColor: "blue",
+						cursor:"move",
+						display: "block",
+						zIndex: 2
+				}});
+				that.prototype.lineDragAndResize(dragobj.id);
+				
 			}	
 		},
 		praseThemeToJson :function(themeId){ //将模板布局转换为json
@@ -180,6 +193,59 @@ var themeLayout = function() {
 		},
 		fillCont:function(){
 			
+		},
+		lineDragAndResize: function(targetId){
+			var confg = {
+					posX : 0,     
+					posY : 0,
+					perX : 0, //初始位置
+					perY : 0,
+					targetWidth : 0,
+					targerHeight : 0,
+					setConfg :function(){
+						var ele  = arguments[0];
+						var e  = arguments[1]? arguments[1] :window.event;
+						var pos = $(ele).position();
+						this.targetWidth = ele.style.width;
+						this.targetHeight = ele.style.height;
+						this.perX = parseInt(pos.left);
+						this.perY = parseInt(pos.top);
+						this.posX = e.clientX;
+						this.posY = e.clientY;
+					}
+			};
+			if(!targetId) return;
+			var target = document.getElementById(targetId);
+			this.bindEvent(target, "mousedown", start);
+			function start (ev){
+				console.info("start...");
+				confg.setConfg(target,ev)
+				target.style.cursor = "pointer";
+				that.prototype.bindEvent(target, "mouseup", stop);
+				that.prototype.bindEvent(target, "mousemove", move);
+			}
+			function move(ev){
+				console.info("move...");
+				var event = that.prototype.getEvent(ev);
+				target.style.top = event.clientY +"px";
+				target.style.left = event.clientX +"px";
+			}
+			function stop(ev){
+				console.info("stop...");
+				resize(ev);
+				that.prototype.unbindEvent(target,"mousemove");
+				that.prototype.unbindEvent(target,"mouseup");
+			} 
+			function resize(ev){
+				var event = that.prototype.getEvent(ev);
+				var resizeTarget  = target.parentNode;
+				resizeTarget.style.width = (event.clientX - confg.perX) + parseInt(resizeTarget.style.width) +"px";
+				resizeTarget.style.height =	(event.clientY - confg.perY) + parseInt(resizeTarget.style.height)  + "px";
+ 			}
+		},
+		getEvent: function(ev){
+			var e = ev ||window.event;
+			return e;
 		},
 		bindEvent: function(element, e, fn){
 			element.addEventListener?element.addEventListener(e,fn,false):element.attachEvent("on" + e,fn); 
