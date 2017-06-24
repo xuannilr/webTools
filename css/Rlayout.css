@@ -1,0 +1,56 @@
+.Rlayout{
+			 	position: relative;
+				width: 100%;
+				height: 100%;
+				background-color: #d5d5d5;
+			 	overflow: hidden;
+			 	/*display: flex;
+				flex-direction: column;
+				flex-wrap: wrap;*/
+			 /* 	border: 1px dotted; */
+			}
+			.iTagDragX{
+				display:none;
+				position: absolute;
+				width: 100%;
+				height: 0;
+				border-bottom: 1px solid #000;
+				z-index: 999;
+			}
+			.iTagDragY{
+				display:none;
+				position: absolute;
+				width: 0;
+				height: 100%;
+				border-left: 1px solid #000;
+				z-index: 999;
+			}
+			.itemSelected{
+				box-shadow:0 0 10px #0CC;
+				z-index: 2;
+			}
+			.item{
+				position: absolute;
+				top: 0;
+				left: 0;
+				z-index: 1;
+			}
+			.del-item{
+				display: none;
+			    position: absolute;
+			    top: 2px;
+			    right: 1px;
+			    width: 15px;
+			    height: 15px;
+			    line-height: 15px;
+			    cursor: pointer;
+			    z-index: 2;
+			}
+			.item-add-icon{
+				position: absolute;
+			}
+			.item-content{
+				position: absolute;
+				width: 100%;
+				height: 100%;
+			}
