@@ -24,6 +24,15 @@
 		unbindEvent: function(element, e, fn){
 			 element.removeEventListener?element.removeEventListener(e,fn,false):element.detachEvent("on" + e,fn);
 		},
+		// 防止事件冒泡
+		stoppro : function (e){
+			e = e||window.event;
+			if(e.stopPropagation){
+				e.stopPropagation();
+			}else{
+				e.cancelBubble=true;
+			}
+		},
 		extend : function(destination, source) { 
 		    for (var property in source) { 
 		    	if(source[property]===null||source[property]===undefined||source[property]==="")continue;
@@ -192,26 +201,29 @@
 		
 	var Rlayout = {
 			attrubites:{
-				rootChildren:[],
-				rootId:"",
-				data:tools.collection.HashMap(),
-				index:0,
-				length:0
+				rootId : "",
+				rootChildren : [],
+				data : tools.collection.HashMap(),
+				addIconId:"iTagAddIcon",
+				index : 0,
+				row : 0,
+				col : 0,
+				length : 0
 			},
 			confg:{
-				marginPx:10
+				marginPx : 10
 			},
 			init : function(cfg){
 				this.setting={
-					id:"",
-					containerId:"",
-					className:"",
-					themes:[]   // [theme,theme,theme]
+					id : "",
+					containerId : "",
+					className : "",
+					themes : []   // [theme,theme,theme]
 				};
 				this.style={
-					position:"absolute",
-					width:"100%",
-					height:"100%"
+					position : "absolute",
+					width : "100%",
+					height : "100%"
 				};
 				tools.extend(this.setting,cfg);
 				var ele = this.createDomEle({"name":"div","className":this.setting.className,"id":this.setting.id,"containerId":this.setting.containerId});
@@ -224,7 +236,7 @@
 					this.showThemeLayout(_themes[0]);
 				}
 			},
-			createDomEle:function(args){
+			createDomEle : function(args){
 				var property = {name:"div",className:'',"id":"",containerId:"",attr:{},style:{}};
 				tools.extend(property,args);
 				var parent  =  document.getElementById(property.containerId);
@@ -239,10 +251,10 @@
 				}
 				return ele;
 			},
-			getThemes:function(){
+			getThemes : function(){
 				return this.setting.themes;
 			},
-			addTheme:function(theme){
+			addTheme : function(theme){
 				this.setting.themes.put(theme);
 			},
 			showThemeLayout:function(_t){ //
@@ -267,6 +279,8 @@
 			createSiGongGe : function(_containerId,row,col,isRoot){
 				if(isRoot) {
 					Rlayout.attrubites.data.rootId = _containerId;
+					Rlayout.attrubites.row = row;
+					Rlayout.attrubites.col = col;
 					this.createDomEle({
 						id:_containerId+"_iTagDragY",
 						containerId:_containerId,
@@ -277,10 +291,17 @@
 						containerId:_containerId,
 						className:"iTagDragX"
 					});
+					/*this.createDomEle({
+						id:this.attrubites.addIconId,
+						containerId:_containerId,
+						className:"item-add-icon"
+					});*/
+					$("#"+_containerId).append("<div class='item-add-icon' id='"+this.attrubites.addIconId+"'><img ></div>");
 				}
 				var gongGeNum = row*col , i = 0,k = 0;
 				//var _w = tools.percentage(1, col) , _h = tools.percentage(1, row); //TODO
-				var _w = ($("#"+_containerId).width()-(col+1)*this.confg.marginPx)/col , _h = ($("#"+_containerId).height()-(row+2)*this.confg.marginPx)/row; //TODO
+				var _w = ($("#"+_containerId).width()-(col+1)*this.confg.marginPx)/col ,
+					_h = ($("#"+_containerId).height()-(row+2)*this.confg.marginPx)/row; //TODO
 				var style = {
 					width:_w,
 					height:_h
@@ -303,13 +324,13 @@
 							attr:{index:i+"_"+j,isRootChild:true,deep:0}
 						});
 						k++;
-						_t = i*_h+(this.confg.marginPx*(i+1));
-						_l = j *_w+(this.confg.marginPx*(j+1));
+						_t = i*_h + (this.confg.marginPx*(i+1));
+						_l = j *_w + (this.confg.marginPx*(j+1));
 						$(ele).css({
-							top:_t,
-							left: _l,
-							width:_w,
-							height:_h
+							top : _t,
+							left : _l,
+							width : _w,
+							height : _h
 						});
 						$(ele).append("<span class='del-item' >x</span><div class='item-content'></div>");
 						tools.bindEvent(ele, "click", function(){
@@ -330,21 +351,92 @@
 					
 				}
 			},
-			/**
-			 * type  0 1 2 3 上下左右边框点击
-			 */
-			createItem:function(id ,type){
-			    var _row = 1 , _col = 1 , num = 2;
+			createItem : function(id ,type){								
+				var row = 1 , col = 1 , num = 2 ,_containerId = id ,i = 1 ,k = 0 ;
+				var _w = "100%" ,
+					_h = "100%"; //TODO
 				if(tools.odd_even_check(type)){
-					_col  = num;
+					row  = num ;
+					_h = ($("#"+_containerId).height()-(row-1)*this.confg.marginPx)/row; 
 				} else {
-					_row  = num ;
+					col  = num;
+					_w = ($("#"+_containerId).width()-(col-1)*this.confg.marginPx)/col
 				}
+				
 				//销毁iTag
-				$(".iTag","#"+id).each(function(i){
-					$(this).remove();
-				});			
-				Rlayout.createSiGongGe(id, _row, _col);
+				$("#"+_containerId).empty();
+				$("#"+_containerId).unbind();
+				
+				var style = {
+					width:_w,
+					height:_h
+				};
+				var borthers = [];
+				var _t = 0 , _l  = 0 ,marginPx = 0;
+				for(; i<=row ;i++ ){
+					this.attrubites.rootChildren[i]  = new Array();
+					for (var j = 1 ;j <=col ;j++) {
+						var _id = tools.Uuid();
+						borthers.push(_id);
+						this.attrubites.rootChildren[i][j] = _id;
+						var node = new dataNode(_id,_containerId,borthers);
+						this.attrubites.data.put(_id,node);
+						var ele = this.createDomEle({
+							id:_id,
+							containerId:_containerId,
+							className:"item",
+							style:style,
+							attr:{index:i+"_"+j,isRootChild:false,deep:1}
+						});
+						
+						if(tools.odd_even_check(type)){
+							_t = (i-1)*_h + (this.confg.marginPx*(i-1));
+							style.top = _t;
+						} else {
+							_l = (j-1) *_w + (this.confg.marginPx*(j-1));
+							style.left = _l;
+						}
+						$(ele).css(style);
+						$(ele).append("<span class='del-item' >x</span><div class='item-content'></div>");
+						tools.bindEvent(ele, "click", function(){
+							$(".itemSelected").each(function(){
+								$(this).removeClass("itemSelected");
+								$(".del-item",this).hide();
+								$(".del-item",this).unbind();
+							});
+							$(this).addClass("itemSelected");
+							$(".del-item",this).show();
+							var that = this;
+							$(".del-item",this).unbind().bind('click',function(){
+								Rlayout.deleteItem(that.id);
+							});
+						});
+						this.create_iTags(_id);
+					}
+					
+				}
+			},
+			showAddItem : function (){
+				var ev = tools.getEvent(arguments[0]);
+				var _con = this.containerId;
+				var type  = this.index;
+				var addItemIcon =  tools.getEleId(Rlayout.attrubites.addIconId);
+				var bgImg = ["down.png","left.png","up.png","right.png"]; 
+				var imgsrc ="./img/";
+				tools.stoppro(ev);
+				$(addItemIcon).css({
+					"display":"block",
+					"top":ev.clientY,
+					"left":ev.clientX
+				});
+				console.info(type);
+				
+				$("img",addItemIcon)[0].src = imgsrc + bgImg[type];
+				$("img",addItemIcon).unbind().bind("click",function(ev){
+					tools.stoppro(ev);
+					$(addItemIcon).hide();
+					Rlayout.createItem(_con, type);
+				});
 			},
 			create_iTags :function(_containerId){
 				var borders = ["border-top","border-right","border-bottom","border-left"];
@@ -364,9 +456,9 @@
 					}
 					});
 					$(iTag).css(borders[int2],"3px dashed red");
-//					tools.bindEvent(iTag, "click", function(){
-//						Rlayout.createItem(this.containerId,this.index,2);
-//					});	
+					tools.bindEvent(iTag, "mouseover", function(e){
+						Rlayout.showAddItem.apply(this,arguments);
+					});	
 					tools.bindEvent(iTag, "mousedown", function(ev){
 						Rlayout.lineDrag.lineDragStart(this.containerId, this.index,ev);
 					});	
@@ -375,7 +467,7 @@
 			praseThemeToJson :function(themeId){ //将模板布局转换为json
 				if(!themeId)return;
 				var ele  = document.getElementById(themeId);	
-				var themeJson =new Object() ;
+				var themeJson = new Object() ;
 				themeJson[ele.id] = ele.id;
 				themeJson.children = [];
 				var childList = ele.childNodes; 
@@ -424,7 +516,7 @@
 					}
 					var relateEle  = Rlayout.attrubites.rootChildren[__r][__c];
 					if(f==0){
-						__c--
+						__c--;
 						$("#"+relateEle).css({"width":$("#"+relateEle).width()+$($target).width()+Rlayout.confg.marginPx,
 						"left":$("#"+relateEle).position().left - $($target).width()-Rlayout.confg.marginPx});
 					}else if(f==1){
@@ -538,8 +630,7 @@
 			    		"height":_h,
 			    		"top":offset.top-8,
 			    		"left":offset.left+_l-8
-			    	});
-			    	
+			    	});	
 			    },
 				resize:function(e){
 					var ev  =  tools.getEvent(e);
@@ -550,54 +641,58 @@
 					var r_c = tools.getEleId(Rlayout.lineDrag.lineData.target).index;
 					var relateEle = "";
 					var $target = $("#"+Rlayout.lineDrag.lineData.target);
-					var __r = 0 ,__c = 0;
-					if(r_c){
-						__r = parseInt(r_c.split("_")[0]);
-						__c = parseInt(r_c.split("_")[1]);
-					}
-					if(dir == 0){
-						__r--;
-					}else if(dir == 1){
-						__c++;
-					}else if(dir == 2){
-						__r++;
-					}else if(dir == 3){
-						__c--;
-					}
-					if(__r<0||__c<0||__r>=Rlayout.attrubites.rootChildren.length||__c>=Rlayout.attrubites.rootChildren[0].length){return;}
-					relateEle = Rlayout.attrubites.rootChildren[__r][__c];
-					var $relateEle = $("#"+relateEle);
-					if(Rlayout.lineDrag.lineData.lineDragObj.className =="iTagDragY"){
-						movePx =  ev.clientX - Rlayout.lineDrag.lineData.original[0] ;
-						oldHW = $target.width();
+					if($target[0].isRootChild){
+						var __r = 0 ,__c = 0;
+						if(r_c){
+							__r = parseInt(r_c.split("_")[0]);
+							__c = parseInt(r_c.split("_")[1]);
+						}
+						if(dir == 0){
+							__r--;
+						}else if(dir == 1){
+							__c++;
+						}else if(dir == 2){
+							__r++;
+						}else if(dir == 3){
+							__c--;
+						}
+						if(__r<0||__c<0||__r>=Rlayout.attrubites.rootChildren.length||__c>=Rlayout.attrubites.rootChildren[0].length){return;}
+						relateEle = Rlayout.attrubites.rootChildren[__r][__c];
+						var $relateEle = $("#"+relateEle);
+						if(Rlayout.lineDrag.lineData.lineDragObj.className =="iTagDragY"){
+							movePx =  ev.clientX - Rlayout.lineDrag.lineData.original[0] ;
+							oldHW = $target.width();
+						}else{
+							movePx =  ev.clientY - Rlayout.lineDrag.lineData.original[1];
+							oldHW = $target.height();
+						}
+						if(dir== 0 ||dir == 3){
+							newHW = oldHW - movePx;
+						}else{
+							newHW = oldHW + movePx;
+						}
+						console.info("dir-->"+ dir +"  movePx>0: "+movePx);
+						if(dir == 0){
+							$target.css({"height":newHW,"top":$target.position().top+movePx});  // t
+							$relateEle.css({"height":$relateEle.height()+movePx});
+						}else if(dir == 1){  // r
+							$target.css({"width":newHW});
+							$relateEle.css({"width":$relateEle.width()-movePx,"left":$relateEle.position().left+movePx});
+						}else if(dir == 2){  // r
+							$target.css({"height":newHW});
+							$relateEle.css({"height":$relateEle.height()-movePx,"top":$relateEle.position().top+movePx});
+						}else if(dir == 3){ //  t
+							$target.css({"width":newHW,"left":$target.position().left+movePx});
+							$relateEle.css({"width":$relateEle.width()+movePx});
+						}
 					}else{
-						movePx =  ev.clientY - Rlayout.lineDrag.lineData.original[1];
-						oldHW = $target.height();
+						
 					}
-					if(dir== 0 ||dir == 3){
-						newHW = oldHW - movePx;
-					}else{
-						newHW = oldHW + movePx;
-					}
-					console.info("dir-->"+ dir +"  movePx>0: "+movePx);
-					if(dir == 0){
-						$target.css({"height":newHW,"top":$target.position().top+movePx});  // t
-						$relateEle.css({"height":$relateEle.height()+movePx});
-					}else if(dir == 1){  // r
-						$target.css({"width":newHW});
-						$relateEle.css({"width":$relateEle.width()-movePx,"left":$relateEle.position().left+movePx});
-					}else if(dir == 2){  // r
-						$target.css({"height":newHW});
-						$relateEle.css({"height":$relateEle.height()-movePx,"top":$relateEle.position().top+movePx});
-					}else if(dir == 3){ //  t
-						$target.css({"width":newHW,"left":$target.position().left+movePx});
-						$relateEle.css({"width":$relateEle.width()+movePx});
-					}
+					
 
 				}
 			}
 		};
-
 	if ( typeof noGlobal ===  typeof undefined ) {
 		window.Rlayout = Rlayout;
 	}
