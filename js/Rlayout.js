@@ -645,19 +645,15 @@
 				},
 				lineDragMove: function(ev){
 					var e  = tools.getEvent(ev);
-					var posX = e.clientX  - 60 - 20;
-					var posY = e.clientY - 96 - 38-30;
 					var lineOffset = $(Rlayout.lineDrag.lineData.lineDragObj).offset();
 					if(Rlayout.lineDrag.lineData.ismousedown){
 						if(Rlayout.lineDrag.lineData.lineDragObj.className =="iTagDragY"){
-							$(Rlayout.lineDrag.lineData.lineDragObj).css({
-								"left":posX
-							});
+							lineOffset.left =  e.pageX;
 						} else {
-							$(Rlayout.lineDrag.lineData.lineDragObj).css({
-								"top":posY
-							});
+							lineOffset.top = e.pageY;
 						}
+					}
+					$(Rlayout.lineDrag.lineData.lineDragObj).offset(lineOffset);
 					}				
 				},
 				lineDragEnd: function(ev){	
