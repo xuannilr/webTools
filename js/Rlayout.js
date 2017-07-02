@@ -12,7 +12,6 @@
 		factory( global );
 	}
 }(typeof window !== "undefined" ? window : this, function( window, noGlobal ) {
-	
 	var tools = {
 		getEvent: function(ev){
 			var e = ev ||window.event;
@@ -39,6 +38,7 @@
 		        destination[property] = source[property]; 
 		    } 
 		},
+		isArray:Array.isArray,
 		addPx : function (val){
 	    	if(val === "undefined"){throw new Error( "val must definiting" );}
 			return val+"px";
@@ -191,49 +191,111 @@
 			if(this.bortherIds[i] == this.id){
 				continue;
 			}
-			bortherNodes.push(tools.getEleId(bortherIds[i]));
+			bortherNodes.push(tools.getEleId(this.bortherIds[i]));
 		}
 		return bortherNodes;
 	};
 	dataNode.fn.setRoot = function(){
 		this.root = true; 
 	};
-		
+	var theme = function (id,width,height,top,left,index,children){
+		this.id = id;
+		this.width = width;
+		this.height = height;
+		this.top = top;
+		this.left = left;
+		this.index = index;
+		this.children = children; 
+	};
+	theme.prototype.updateCss  = function(_w,_h,_t,_l){
+		this.width = _w;
+		this.height = _h;
+		this.top = _t;
+		this.left = _l;
+	};
 	var Rlayout = {
 			attrubites:{
 				rootId : "",
-				rootChildren : [],
-				data : tools.collection.HashMap(),
-				addIconId:"iTagAddIcon",
+				rootChildren : [],     //保存直接子节点    n root   
+				data : tools.collection.HashMap(),   //所有节点以map  形式保存   id - dataNode
+				addIconId : "iTagAddIcon",   
+				themesLayout : [],   //所有节点json
+				selected:"",
 				index : 0,
 				row : 0,
 				col : 0,
 				length : 0
 			},
 			confg:{
-				marginPx : 10
+				marginPx : 5,
+				imgsrc :rootPath+"/js/plugin/rLayout/img/"
 			},
-			init : function(cfg){
-				this.setting={
-					id : "",
-					containerId : "",
-					className : "",
-					themes : []   // [theme,theme,theme]
-				};
-				this.style={
-					position : "absolute",
-					width : "100%",
-					height : "100%"
-				};
-				tools.extend(this.setting,cfg);
-				var ele = this.createDomEle({"name":"div","className":this.setting.className,"id":this.setting.id,"containerId":this.setting.containerId});
-				tools.extend(ele.style,this.style);
-				_themes = this.setting.themes;
-				if(_themes.length>0){
-					for(var t in _themes){
-						ele.appendChild(this.careteNewTheme(_themes[t]));
+			init : function(_containerId,themes,isEdit,hasDrag){
+				if(!hasDrag){
+					Rlayout.attrubites.rootId = _containerId;
+					Rlayout.attrubites.rootChildren = [];
+				}
+				var hasChild  = false;
+				var childrenThemes = [];
+				if(themes&&themes.length>0){
+					for ( var i = 0 ,len = themes.length ;i < len ; i++) {
+						var the = themes[i];
+						var  style = {
+							position : "absolute",
+							top : tools.addPx(the.top),
+							left : tools.addPx(the.left),
+							width :the.width ,
+							height : the.height
+						};
+						if(the.children&&the.children.length>0){
+							hasChild  = true;
+						}
+						var ele = this.createDomEle({
+							id:the.id,
+							className:'r-item',
+							containerId:_containerId,
+							attr:{
+								index: the.index,
+								isRootChild:hasChild
+							}
+						});
+						$(ele).css(style);
+						
+						if(the.index &&!hasDrag){
+							var row = parseInt(the.index.split("_")[0]);
+							var col = parseInt(the.index.split("_")[1]);
+							if(!tools.isArray(Rlayout.attrubites.rootChildren[row])){
+								Rlayout.attrubites.rootChildren[row] = [];
+							}
+							Rlayout.attrubites.rootChildren[row][col] = ele.id;
+							Rlayout.attrubites.themesLayout.push(new theme(the.id,the.width,the.height,the.top,the.left,the.index));
+						}else{
+							childrenThemes.push(new theme(the.id,the.width,the.height,the.top,the.left,the.index));
+						}	
+						if(isEdit){
+							$(ele).append("<span class='del-item' >x</span><div class='item-content'><img class='addData' src='"+Rlayout.confg.imgsrc+"add_data.png"+"'></div>");
+							tools.bindEvent(ele, "click", function(e){
+								Rlayout.handleClick.call(this,e);
+							});
+							if(!the.children){
+								this.create_iTags(ele.id);
+							}
+						}
+						if(hasChild){
+							Rlayout.init(ele.id, the.children, isEdit,true);
+						}
+					}	
+					if(!hasDrag){
+						this.createDragLine(_containerId);
+					}	
+				} 
+				if(childrenThemes.length>0){
+					Rlayout.getTheme(_containerId).children = childrenThemes;
+					var borther = [];
+					for(var o in childrenThemes){
+						borther[o] = childrenThemes[o].id;
+						Rlayout.attrubites.data.put(childrenThemes[o].id,new dataNode(childrenThemes[o].id,_containerId,borther)); 
 					}
-					this.showThemeLayout(_themes[0]);
 				}
 			},
 			createDomEle : function(args){
@@ -251,57 +313,47 @@
 				}
 				return ele;
 			},
-			getThemes : function(){
-				return this.setting.themes;
+			getLayoutThemes : function(){
+				return this.attrubites.themesLayout;
 			},
-			addTheme : function(theme){
-				this.setting.themes.put(theme);
-			},
-			showThemeLayout:function(_t){ //
-				document.getElementById(_t.id).style.display = "block";
-			},
-			hideThemeLayout:function(){  //隐藏
-				document.getElementById(_t.id).style.display = "none";
-			},
-			careteNewTheme:function(theme){  //创建  theme{ id:"","children":[div,div,div] }
-				var t = this.createDomEle({name:"div","id":theme.id}); 
-				for(var temp in theme.children){
-					t.appendChild(this.createDomEle(theme.children[temp]));
+			getTheme : function(_id){
+				var themes = this.attrubites.themesLayout ;
+				var i = 0 , len = themes.length;
+				if(themes){
+					for( ;i<len ; i++){
+						if(themes[i].id == _id) break;
+					}
 				}
-				 return t;
+				return themes[i];
 			},
-			chooseTheme:function(){  //选中
-				
+			praseThemeToJson :function(){ //将模板布局转换为json
+				return JSON.stringify(this.attrubites.themesLayout);
 			},
-			disginTheme:function(contianerId){
-				createItem();
+			fillCont:function(e){
+			},
+			createDragLine : function (_containerId){
+				this.createDomEle({
+					id:_containerId+"_iTagDragY",
+					containerId:_containerId,
+					className:"iTagDragY"
+				});
+				this.createDomEle({
+					id:_containerId+"_iTagDragX",
+					containerId:_containerId,
+					className:"iTagDragX"
+				});
+				$("#"+_containerId).append("<div class='item-add-icon' id='"+this.attrubites.addIconId+"'><img ></div>");
 			},
 			createSiGongGe : function(_containerId,row,col,isRoot){
-				if(isRoot) {
-					Rlayout.attrubites.data.rootId = _containerId;
-					Rlayout.attrubites.row = row;
-					Rlayout.attrubites.col = col;
-					this.createDomEle({
-						id:_containerId+"_iTagDragY",
-						containerId:_containerId,
-						className:"iTagDragY"
-					});
-					this.createDomEle({
-						id:_containerId+"_iTagDragX",
-						containerId:_containerId,
-						className:"iTagDragX"
-					});
-					/*this.createDomEle({
-						id:this.attrubites.addIconId,
-						containerId:_containerId,
-						className:"item-add-icon"
-					});*/
-					$("#"+_containerId).append("<div class='item-add-icon' id='"+this.attrubites.addIconId+"'><img ></div>");
-				}
+				this.createDragLine(_containerId);
+				Rlayout.attrubites.rootId = _containerId;
+				Rlayout.attrubites.row = row;
+				Rlayout.attrubites.col = col;
 				var gongGeNum = row*col , i = 0,k = 0;
-				//var _w = tools.percentage(1, col) , _h = tools.percentage(1, row); //TODO
-				var _w = ($("#"+_containerId).width()-(col+1)*this.confg.marginPx)/col ,
-					_h = ($("#"+_containerId).height()-(row+2)*this.confg.marginPx)/row; //TODO
+				var _w = ($("#"+_containerId).width()-(col+1)*this.confg.marginPx)/col ,   
+					_h = ($("#"+_containerId).height()-(row+2)*this.confg.marginPx)/row; 
+//				 _w = tools.percentage(_w, ($("#"+_containerId).width())) , //TODO
+//				 _h = tools.percentage(_h, ($("#"+_containerId).height())); //TODO
 				var style = {
 					width:_w,
 					height:_h
@@ -316,10 +368,11 @@
 						this.attrubites.rootChildren[i][j] = _id;
 						var node = new dataNode(_id,_containerId,borthers);
 						this.attrubites.data.put(_id,node);
+						
 						var ele = this.createDomEle({
 							id:_id,
 							containerId:_containerId,
-							className:"item",
+							className:"r-item",
 							style:style,
 							attr:{index:i+"_"+j,isRootChild:true,deep:0}
 						});
@@ -332,63 +385,90 @@
 							width : _w,
 							height : _h
 						});
-						$(ele).append("<span class='del-item' >x</span><div class='item-content'></div>");
-						tools.bindEvent(ele, "click", function(){
-							$(".itemSelected").each(function(){
-								$(this).removeClass("itemSelected");
-								$(".del-item",this).hide();
-								$(".del-item",this).unbind();
-							});
-							$(this).addClass("itemSelected");
-							$(".del-item",this).show();
-							var that = this;
-							$(".del-item",this).unbind().bind('click',function(){
-								Rlayout.deleteItem(that.id);
-							});
+						this.attrubites.themesLayout.push(new theme(_id,_w,_h,_t,_l,i+"_"+j));
+						$(ele).append("<span class='del-item' >x</span><div class='item-content'><img class='addData' src='"+Rlayout.confg.imgsrc+"add_data.png"+"'></div>");
+						tools.bindEvent(ele, "click", function(e){
+							Rlayout.handleClick.call(this,e);
 						});
 						this.create_iTags(_id);
 					}
 					
 				}
 			},
+			handleClick : function(e){
+				tools.stoppro(e);
+				$(".itemSelected").each(function(){
+					$(this).removeClass("itemSelected");
+					$(".del-item",this).hide();
+					$(".del-item",this).unbind();
+				});
+				$(this).addClass("itemSelected");
+				Rlayout.attrubites.selected = this.id;
+				$(".del-item",this).show();
+				var that = this;
+				$(".del-item",this).unbind().bind('click',function(){
+					Rlayout.deleteItem(that.id);
+				});
+				if($(".div-css", this)&&$(".div-css", this).length<=0){
+					$(".addData",this).show();
+				}
+				var that = this;
+				$(".addData",this).unbind().bind('click',function(){
+					JsUtil.asyn.post(rootPath+"/Portal/IcpPortalManager?method=addControl", null, function(jsp){
+						var win = JsUtil.popUp.MiddlePopUp("选择控件");
+						win.setContent(jsp);
+						win.open();
+						$(".addData",that).hide();
+					}, null);
+				});
+			
+			},
 			createItem : function(id ,type){								
-				var row = 1 , col = 1 , num = 2 ,_containerId = id ,i = 1 ,k = 0 ;
+				var row = 1 , col = 1 , num = 2 ,_containerId = id ,i = 1 ,k = 0 ,XY = "";
 				var _w = "100%" ,
 					_h = "100%"; //TODO
 				if(tools.odd_even_check(type)){
 					row  = num ;
-					_h = ($("#"+_containerId).height()-(row-1)*this.confg.marginPx)/row; 
+					_h = ($("#"+_containerId).height()-(row-1)*this.confg.marginPx)/row;
+					XY = "Y";
 				} else {
 					col  = num;
-					_w = ($("#"+_containerId).width()-(col-1)*this.confg.marginPx)/col
+					_w = ($("#"+_containerId).width()-(col-1)*this.confg.marginPx)/col;
+					XY = "X";
+					
 				}
-				
+				if(!$("#"+_containerId)[0].isRootChild){			
+					alert("当前单元格不能拆分");
+					return;
+				}
+				$(".del-item","#"+_containerId).unbind();	
 				//销毁iTag
 				$("#"+_containerId).empty();
-				$("#"+_containerId).unbind();
-				
 				var style = {
 					width:_w,
 					height:_h
 				};
 				var borthers = [];
+				var children = [];
 				var _t = 0 , _l  = 0 ,marginPx = 0;
 				for(; i<=row ;i++ ){
-					this.attrubites.rootChildren[i]  = new Array();
 					for (var j = 1 ;j <=col ;j++) {
 						var _id = tools.Uuid();
 						borthers.push(_id);
-						this.attrubites.rootChildren[i][j] = _id;
 						var node = new dataNode(_id,_containerId,borthers);
 						this.attrubites.data.put(_id,node);
 						var ele = this.createDomEle({
 							id:_id,
 							containerId:_containerId,
-							className:"item",
+							className:"r-item",
 							style:style,
-							attr:{index:i+"_"+j,isRootChild:false,deep:1}
+							attr:{
+								index:i+"_"+j,
+								XY:XY,
+								isRootChild:false,
+								deep:1
+							}
 						});
-						
 						if(tools.odd_even_check(type)){
 							_t = (i-1)*_h + (this.confg.marginPx*(i-1));
 							style.top = _t;
@@ -396,42 +476,34 @@
 							_l = (j-1) *_w + (this.confg.marginPx*(j-1));
 							style.left = _l;
 						}
+						children.push(new theme(_id,_w,_h,_t,_l,i+"_"+j));
 						$(ele).css(style);
-						$(ele).append("<span class='del-item' >x</span><div class='item-content'></div>");
-						tools.bindEvent(ele, "click", function(){
-							$(".itemSelected").each(function(){
-								$(this).removeClass("itemSelected");
-								$(".del-item",this).hide();
-								$(".del-item",this).unbind();
-							});
-							$(this).addClass("itemSelected");
-							$(".del-item",this).show();
-							var that = this;
-							$(".del-item",this).unbind().bind('click',function(){
-								Rlayout.deleteItem(that.id);
-							});
+						$(ele).append("<span class='del-item' >x</span><div class='item-content'><img class='addData' src='"+Rlayout.confg.imgsrc+"add_data.png"+"'></div>");
+						tools.bindEvent(ele, "click", function(e){
+							Rlayout.handleClick.call(this,e);
 						});
 						this.create_iTags(_id);
 					}
-					
 				}
+				Rlayout.getTheme(_containerId).children = children;	
 			},
 			showAddItem : function (){
+				tools.stoppro(ev);
 				var ev = tools.getEvent(arguments[0]);
 				var _con = this.containerId;
 				var type  = this.index;
+				var thatOffset = $("#"+_con).offset();
 				var addItemIcon =  tools.getEleId(Rlayout.attrubites.addIconId);
-				var bgImg = ["down.png","left.png","up.png","right.png"]; 
-				var imgsrc ="./img/";
-				tools.stoppro(ev);
+				var bgImg = ["down.png","left.png","up.png","right.png"];
+				var sty = {"display":"block"};
+				var _w = $("#"+_con).width(),_h  = $("#"+_con).height();
 				$(addItemIcon).css({
 					"display":"block",
-					"top":ev.clientY,
-					"left":ev.clientX
+					"top":ev.clientY - 96 -40 - 20,
+					"left":ev.clientX -60 
 				});
-				console.info(type);
-				
-				$("img",addItemIcon)[0].src = imgsrc + bgImg[type];
+				sty = null;
+				$("img",addItemIcon)[0].src = Rlayout.confg.imgsrc + bgImg[type];
 				$("img",addItemIcon).unbind().bind("click",function(ev){
 					tools.stoppro(ev);
 					$(addItemIcon).hide();
@@ -444,8 +516,8 @@
 					var iTag =  this.createDomEle({name:"i",containerId:_containerId,id:_containerId+"_i_"+int2,className:"iTag",
 					attr:{"index":int2},
 					style:{
-						width:int2%2==0?"100%":"0px",    //TODO 3px
-						height:int2%2==0?"0px":"100%",   //TODO 3px
+						width:int2%2==0?"100%":"3px",    //TODO 3px
+						height:int2%2==0?"3px":"100%",   //TODO 3px
 						position:"absolute",
 						top:int2==0?"0":"",
 						right:int2==1?"0":"",
@@ -455,7 +527,7 @@
 						display: "block"
 					}
 					});
-					$(iTag).css(borders[int2],"3px dashed red");
+					$(iTag).css(borders[int2],"1px dashed red");
 					tools.bindEvent(iTag, "mouseover", function(e){
 						Rlayout.showAddItem.apply(this,arguments);
 					});	
@@ -463,33 +535,6 @@
 						Rlayout.lineDrag.lineDragStart(this.containerId, this.index,ev);
 					});	
 				}
-			},
-			praseThemeToJson :function(themeId){ //将模板布局转换为json
-				if(!themeId)return;
-				var ele  = document.getElementById(themeId);	
-				var themeJson = new Object() ;
-				themeJson[ele.id] = ele.id;
-				themeJson.children = [];
-				var childList = ele.childNodes; 
-				if(!childList) return;
-				for(var i = 0 ;i<childList.length ;i++){
-					var t = new Object();
-					t["className"] =  childList[i].className;
-					t["id"]  = childList[i].id;
-					t["attr"] = {};
-					t["style"] = {};
-					tools.extend(t["attr"],childList[i].attr);
-					tools.extend(t["style"],childList[i].style);
-					themeJson.children.push(t);
-					t = null;
-				}
-				function forArray(){
-					
-				}
-				return JSON.stringify(themeJson);
-			},
-			fillCont:function(){
-				
 			},
 			deleteItem:function(_containerId){
 				var $target = tools.getEleId(_containerId);
@@ -532,7 +577,12 @@
 				}else{
 					var dataNode = Rlayout.attrubites.data.get(_containerId);
 					var borther = dataNode.getBorther()[0];
-					
+					if(borther){
+						$(borther).css({"width":"100%","height":"100%","top":"0","left":"0"});
+					}else{
+						
+					}
+					$($target).remove();
 				}
 			},
 			lineDrag:{
@@ -546,7 +596,8 @@
 					dragDir :0      //拖拽的方向
 				},
 				getTagDrag :function(type){
-					 return tools.getEleId(Rlayout.attrubites.data.rootId+"_iTagDrag"+type);
+					console.info('--->'+Rlayout.attrubites.rootId+"_iTagDrag"+type);
+					 return tools.getEleId(Rlayout.attrubites.rootId+"_iTagDrag"+type);
 				},
 				/**
 				 * 
@@ -576,8 +627,8 @@
 				},
 				lineDragMove: function(ev){
 					var e  = tools.getEvent(ev);
-					var posX = e.clientX;
-					var posY = e.clientY;
+					var posX = e.clientX  - 60 - 20;
+					var posY = e.clientY - 96 - 38-30;
 					var lineOffset = $(Rlayout.lineDrag.lineData.lineDragObj).offset();
 					if(Rlayout.lineDrag.lineData.ismousedown){
 						if(Rlayout.lineDrag.lineData.lineDragObj.className =="iTagDragY"){
@@ -589,19 +640,19 @@
 								"top":posY
 							});
 						}
-						//Rlayout.lineDrag.resize(ev);
-					}
-								
+					}				
 				},
-				lineDragEnd: function(ev){
-					Rlayout.lineDrag.lineData.ismousedown = false;
+				lineDragEnd: function(ev){	
 					$(Rlayout.lineDrag.lineData.lineDragObj).css({"display":"none"});
-					Rlayout.lineDrag.resize(ev);
+					if(Rlayout.lineDrag.lineData.ismousedown){
+						Rlayout.lineDrag.resize(ev);
+					}
+					Rlayout.lineDrag.lineData.ismousedown = false;
 					tools.unbindEvent(document, "mousemove",  Rlayout.lineDrag.lineDragMove);
 					tools.unbindEvent(document, "mouseup",  Rlayout.lineDrag.lineDragEnd);
 				},
 				down : function(e,_containerId,type){ 
-			    	var offset = $("#"+_containerId).offset();
+			    	var offset = $("#"+_containerId).position();
 			    	var dragObj  = this.getTagDrag(tools.odd_even_check(type)?"X":"Y");
 			    	var _w = $("#"+_containerId).width() ,_h = $("#"+_containerId).height();
 			    	var _t = 0;
@@ -612,12 +663,12 @@
 			    	$(dragObj).css({
 			    		"display":"block",
 			    		"width":_w,
-			    		"top":offset.top + _t -8,
-			    		"left":offset.left -8
+			    		"top":offset.top + _t,
+			    		"left":offset.left
 			    	}); 
 			    }, 
 			    right : function(e,_containerId,type){
-			    	var offset = $("#"+_containerId).offset();
+			    	var offset = $("#"+_containerId).position();
 			    	var dragObj  = this.getTagDrag(tools.odd_even_check(type)?"X":"Y");
 			    	var _w = $("#"+_containerId).width(),_h = $("#"+_containerId).height();
 			    	var _l = 0 ;
@@ -628,8 +679,8 @@
 			    	$(dragObj).css({
 			    		"display":"block",
 			    		"height":_h,
-			    		"top":offset.top-8,
-			    		"left":offset.left+_l-8
+			    		"top":offset.top,
+			    		"left":offset.left+_l
 			    	});	
 			    },
 				resize:function(e){
@@ -638,11 +689,24 @@
 					var dir = Rlayout.lineDrag.lineData.dragDir;  // 0 鼠标上下移动  1 鼠标左右移动
 					var oldHW = 0;
 					var newHW = 0;
-					var r_c = tools.getEleId(Rlayout.lineDrag.lineData.target).index;
-					var relateEle = "";
 					var $target = $("#"+Rlayout.lineDrag.lineData.target);
+					var relateEle = "";
+					var $relateEle ;
+					if(Rlayout.lineDrag.lineData.lineDragObj.className =="iTagDragY"){
+						movePx =  ev.clientX - Rlayout.lineDrag.lineData.original[0] ;
+						oldHW = $target.width();
+					}else{
+						movePx =  ev.clientY - Rlayout.lineDrag.lineData.original[1];
+						oldHW = $target.height();
+					}
+					if(dir== 0 ||dir == 3){
+						newHW = oldHW - movePx;
+					}else{
+						newHW = oldHW + movePx;
+					}
 					if($target[0].isRootChild){
 						var __r = 0 ,__c = 0;
+						var r_c = tools.getEleId(Rlayout.lineDrag.lineData.target).index;
 						if(r_c){
 							__r = parseInt(r_c.split("_")[0]);
 							__c = parseInt(r_c.split("_")[1]);
@@ -658,19 +722,7 @@
 						}
 						if(__r<0||__c<0||__r>=Rlayout.attrubites.rootChildren.length||__c>=Rlayout.attrubites.rootChildren[0].length){return;}
 						relateEle = Rlayout.attrubites.rootChildren[__r][__c];
-						var $relateEle = $("#"+relateEle);
-						if(Rlayout.lineDrag.lineData.lineDragObj.className =="iTagDragY"){
-							movePx =  ev.clientX - Rlayout.lineDrag.lineData.original[0] ;
-							oldHW = $target.width();
-						}else{
-							movePx =  ev.clientY - Rlayout.lineDrag.lineData.original[1];
-							oldHW = $target.height();
-						}
-						if(dir== 0 ||dir == 3){
-							newHW = oldHW - movePx;
-						}else{
-							newHW = oldHW + movePx;
-						}
+						$relateEle = $("#"+relateEle);
 						console.info("dir-->"+ dir +"  movePx>0: "+movePx);
 						if(dir == 0){
 							$target.css({"height":newHW,"top":$target.position().top+movePx});  // t
@@ -686,10 +738,31 @@
 							$relateEle.css({"width":$relateEle.width()+movePx});
 						}
 					}else{
-						
+						var dataNode = Rlayout.attrubites.data.get($target[0].id);
+						$relateEle = $(dataNode.getBorther()[0]);
+						var xy = dataNode.getBorther()[0].XY;
+						if(dir == 0){  // t
+							if(xy!=="Y"||$target[0].index!='2_1'){return;}
+							$target.css({"height":newHW,"top":$target.position().top+movePx}); 
+							$relateEle.css({"height":$relateEle.height()+movePx});
+						}else if(dir == 1){  // r
+							if(xy!=="X"||$target[0].index!='1_1'){return;}
+							$target.css({"width":newHW});
+							$relateEle.css({"width":$relateEle.width()-movePx,"left":$relateEle.position().left+movePx});
+						}else if(dir == 2 ){  // r
+							if(xy!=="Y"||$target[0].index!='1_1'){return;}
+							$target.css({"height":newHW});
+							$relateEle.css({"height":$relateEle.height()-movePx,"top":$relateEle.position().top+movePx});
+						}else if(dir == 3){ //  t
+							if(xy!=="X"||$target[0].index!='1_2'){return;}
+							$target.css({"width":newHW,"left":$target.position().left+movePx});
+							$relateEle.css({"width":$relateEle.width()+movePx});
+						}
+					}	
+					Rlayout.getTheme(Rlayout.lineDrag.lineData.target).updateCss($target.width(),$target.height(),$target.position().top,$target.position().left);
+					if($relateEle&&$relateEle.length>0){
+						Rlayout.getTheme($relateEle[0].id).updateCss($relateEle.width(),$relateEle.height(),$relateEle.position().top,$relateEle.position().left);
 					}
-					
-
 				}
 			}
 		};
