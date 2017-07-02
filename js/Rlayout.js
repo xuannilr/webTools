@@ -32,6 +32,10 @@
 				e.cancelBubble=true;
 			}
 		},
+		getEventTarget: function(ev){
+			var e  = this.getEvent(ev);
+			return e.target||e.srcElement;
+		},
 		extend : function(destination, source) { 
 		    for (var property in source) { 
 		    	if(source[property]===null||source[property]===undefined||source[property]==="")continue;
@@ -488,6 +492,7 @@
 				Rlayout.getTheme(_containerId).children = children;	
 			},
 			showAddItem : function (){
+				// img width 40 height 20
 				tools.stoppro(ev);
 				var ev = tools.getEvent(arguments[0]);
 				var _con = this.containerId;
@@ -495,14 +500,27 @@
 				var thatOffset = $("#"+_con).offset();
 				var addItemIcon =  tools.getEleId(Rlayout.attrubites.addIconId);
 				var bgImg = ["down.png","left.png","up.png","right.png"];
-				var sty = {"display":"block"};
-				var _w = $("#"+_con).width(),_h  = $("#"+_con).height();
-				$(addItemIcon).css({
-					"display":"block",
-					"top":ev.clientY - 96 -40 - 20,
-					"left":ev.clientX -60 
-				});
-				sty = null;
+				var _w = $("#"+_con).width(), _h  = $("#"+_con).height();
+				$(addItemIcon).css({"display":"block"});
+				switch (type) {
+				case 0:
+					thatOffset.left += (_w - 40)/2;
+					break;
+				case 1:
+					thatOffset.top += (_h - 40)/2;
+					thatOffset.left += _w - 20 ;
+					break;
+				case 2:
+					thatOffset.top += _h -20;
+					thatOffset.left += (_w - 40)/2;
+					break;
+				case 3:
+					thatOffset.top += (_h - 40)/2;
+					break;
+				default:
+					break;
+				}
+				$(addItemIcon).offset(thatOffset);
 				$("img",addItemIcon)[0].src = Rlayout.confg.imgsrc + bgImg[type];
 				$("img",addItemIcon).unbind().bind("click",function(ev){
 					tools.stoppro(ev);
@@ -652,36 +670,32 @@
 					tools.unbindEvent(document, "mouseup",  Rlayout.lineDrag.lineDragEnd);
 				},
 				down : function(e,_containerId,type){ 
-			    	var offset = $("#"+_containerId).position();
+			    	var offset = $("#"+_containerId).offset();
 			    	var dragObj  = this.getTagDrag(tools.odd_even_check(type)?"X":"Y");
 			    	var _w = $("#"+_containerId).width() ,_h = $("#"+_containerId).height();
-			    	var _t = 0;
 			    	this.lineData.lineDragObj = dragObj;
 			    	if(type==2){
-			    		_t = _h - 2;
+			    		offset.top += _h - 2;
 			    	}
 			    	$(dragObj).css({
 			    		"display":"block",
-			    		"width":_w,
-			    		"top":offset.top + _t,
-			    		"left":offset.left
+			    		"width":_w
 			    	}); 
+			    	$(dragObj).offset(offset);
 			    }, 
 			    right : function(e,_containerId,type){
-			    	var offset = $("#"+_containerId).position();
+			    	var offset = $("#"+_containerId).offset();
 			    	var dragObj  = this.getTagDrag(tools.odd_even_check(type)?"X":"Y");
 			    	var _w = $("#"+_containerId).width(),_h = $("#"+_containerId).height();
-			    	var _l = 0 ;
 			    	this.lineData.lineDragObj = dragObj;
 			    	if (type == 1){
-			    		_l = _w -2;
+			    		offset.left += _w;
 			    	}
 			    	$(dragObj).css({
 			    		"display":"block",
-			    		"height":_h,
-			    		"top":offset.top,
-			    		"left":offset.left+_l
-			    	});	
+			    		"height":_h
+			    	});
+			    	$(dragObj).offset(offset);
 			    },
 				resize:function(e){
 					var ev  =  tools.getEvent(e);
